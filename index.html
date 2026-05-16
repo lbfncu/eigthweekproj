@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地球仪收音机</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            min-width: 280px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        #info-panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #4fc3f7;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .info-label {
+            color: #888;
+        }
+        .info-value {
+            color: #fff;
+            font-weight: 500;
+        }
+        #radio-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 30px;
+            border-radius: 50px;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        .radio-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .radio-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .radio-btn.playing {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        #now-playing {
+            color: #4fc3f7;
+            font-size: 14px;
+            max-width: 300px;
+        }
+        #volume-slider {
+            width: 100px;
+            accent-color: #667eea;
+        }
+        .instructions {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #888;
+            font-size: 14px;
+            text-align: center;
+            z-index: 100;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+        }
+        .zoom-controls {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+        .zoom-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 1px solid #333;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        .zoom-btn:hover {
+            background: rgba(79, 195, 247, 0.3);
+            border-color: #4fc3f7;
+        }
+        .reset-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            z-index: 100;
+        }
+        .reset-btn:hover {
+            background: rgba(79, 195, 247, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info-panel">
+        <h2>🌍 当前位置信息</h2>
+        <div class="info-row">
+            <span class="info-label">国家/地区:</span>
+            <span class="info-value" id="country">点击选择国家</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">经度:</span>
+            <span class="info-value" id="longitude">0°</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">纬度:</span>
+            <span class="info-value" id="latitude">0°</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">时区:</span>
+            <span class="info-value" id="timezone">UTC+0</span>
+        </div>
+    </div>
+
+    <button class="reset-btn" id="resetBtn">🔄 重置视图</button>
+
+    <div class="instructions">🖱️ 点击国家放大 | 滚轮缩放 | 拖动旋转</div>
+
+    <div id="radio-panel">
+        <button class="radio-btn" id="playBtn">播放电台</button>
+        <div id="now-playing">等待播放...</div>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5">
+    </div>
+
+    <div class="zoom-controls">
+        <button class="zoom-btn" id="zoomIn">+</button>
+        <button class="zoom-btn" id="zoomOut">−</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const countries = {
+            '中国': { lat: 35.86, lon: 104.19, timezone: 'UTC+8', stations: [
+                { name: 'SomaFM Groove Salad', url: 'https://ice2.somafm.com/groovesalad-128-mp3' }
+            ]},
+            '美国': { lat: 37.09, lon: -95.71, timezone: 'UTC-5', stations: [
+                { name: 'KEXP Seattle', url: 'https://kexp-mp3-128.streamguys1.com/kexp128.mp3' },
+                { name: 'SomaFM Drone Zone', url: 'https://ice2.somafm.com/dronezone-128-mp3' }
+            ]},
+            '英国': { lat: 55.37, lon: -3.43, timezone: 'UTC+0', stations: [
+                { name: 'SomaFM DEF CON', url: 'https://ice2.somafm.com/defcon-128-mp3' },
+                { name: 'SomaFM Space Station', url: 'https://ice2.somafm.com/spacestation-128-mp3' }
+            ]},
+            '法国': { lat: 46.22, lon: 2.21, timezone: 'UTC+1', stations: [
+                { name: 'SomaFM Drone Zone', url: 'https://ice2.somafm.com/dronezone-128-mp3' }
+            ]},
+            '德国': { lat: 51.16, lon: 10.45, timezone: 'UTC+1', stations: [
+                { name: 'SomaFM Groove Salad', url: 'https://ice2.somafm.com/groovesalad-128-mp3' }
+            ]},
+            '日本': { lat: 36.20, lon: 138.25, timezone: 'UTC+9', stations: [
+                { name: 'SomaFM Mission Control', url: 'https://ice2.somafm.com/missioncontrol-128-mp3' }
+            ]},
+            '韩国': { lat: 35.90, lon: 127.76, timezone: 'UTC+9', stations: [
+                { name: 'SomaFM DEF CON', url: 'https://ice2.somafm.com/defcon-128-mp3' }
+            ]},
+            '印度': { lat: 20.59, lon: 78.96, timezone: 'UTC+5:30', stations: [
+                { name: 'SomaFM Space Station', url: 'https://ice2.somafm.com/spacestation-128-mp3' }
+            ]},
+            '巴西': { lat: -14.23, lon: -51.92, timezone: 'UTC-3', stations: [
+                { name: 'SomaFM Groove Salad', url: 'https://ice2.somafm.com/groovesalad-128-mp3' }
+            ]},
+            '澳大利亚': { lat: -25.27, lon: 133.77, timezone: 'UTC+11', stations: [
+                { name: 'SomaFM Beat Blender', url: 'https://ice2.somafm.com/beatblender-128-mp3' }
+            ]},
+            '俄罗斯': { lat: 61.52, lon: 105.31, timezone: 'UTC+3', stations: [
+                { name: 'SomaFM DEF CON', url: 'https://ice2.somafm.com/defcon-128-mp3' }
+            ]},
+            '加拿大': { lat: 56.13, lon: -106.34, timezone: 'UTC-5', stations: [
+                { name: 'SomaFM Deep Space One', url: 'https://ice2.somafm.com/deepspaceone-128-mp3' }
+            ]},
+            '意大利': { lat: 41.87, lon: 12.56, timezone: 'UTC+1', stations: [
+                { name: 'SomaFM Drone Zone', url: 'https://ice2.somafm.com/dronezone-128-mp3' }
+            ]},
+            '西班牙': { lat: 40.46, lon: -3.75, timezone: 'UTC+1', stations: [
+                { name: 'SomaFM Mission Control', url: 'https://ice2.somafm.com/missioncontrol-128-mp3' }
+            ]},
+            '墨西哥': { lat: 23.63, lon: -102.55, timezone: 'UTC-6', stations: [
+                { name: 'SomaFM Groove Salad', url: 'https://ice2.somafm.com/groovesalad-128-mp3' }
+            ]},
+            '阿根廷': { lat: -38.42, lon: -63.61, timezone: 'UTC-3', stations: [
+                { name: 'SomaFM Space Station', url: 'https://ice2.somafm.com/spacestation-128-mp3' }
+            ]},
+            '南非': { lat: -30.55, lon: 22.93, timezone: 'UTC+2', stations: [
+                { name: 'SomaFM DEF CON', url: 'https://ice2.somafm.com/defcon-128-mp3' }
+            ]},
+            '埃及': { lat: 26.82, lon: 30.80, timezone: 'UTC+2', stations: [
+                { name: 'SomaFM Deep Space One', url: 'https://ice2.somafm.com/deepspaceone-128-mp3' }
+            ]},
+            '新西兰': { lat: -40.90, lon: 174.88, timezone: 'UTC+13', stations: [
+                { name: 'SomaFM Beat Blender', url: 'https://ice2.somafm.com/beatblender-128-mp3' }
+            ]},
+            '土耳其': { lat: 38.96, lon: 35.24, timezone: 'UTC+3', stations: [
+                { name: 'SomaFM Drone Zone', url: 'https://ice2.somafm.com/dronezone-128-mp3' }
+            ]}
+        };
+
+        let scene, camera, renderer, controls, earth, raycaster, mouse;
+        let countryLabels = [];
+        let countryMarkers = [];
+        let audio = new Audio();
+        let isPlaying = false;
+        let currentStation = null;
+        let currentZoomLevel = 2.5;
+
+        function init() {
+            scene = new THREE.Scene();
+            
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = currentZoomLevel;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enablePan = false;
+            controls.minDistance = 1.2;
+            controls.maxDistance = 4;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+            sunLight.position.set(5, 3, 5);
+            scene.add(sunLight);
+
+            createEarth();
+            createCountryMarkers();
+            createStars();
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onMouseClick);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('wheel', onWheel);
+
+            document.getElementById('playBtn').addEventListener('click', togglePlay);
+            document.getElementById('volume-slider').addEventListener('input', function(e) {
+                audio.volume = e.target.value;
+            });
+            document.getElementById('zoomIn').addEventListener('click', function() { zoomTo(-0.3); });
+            document.getElementById('zoomOut').addEventListener('click', function() { zoomTo(0.3); });
+            document.getElementById('resetBtn').addEventListener('click', resetView);
+
+            animate();
+        }
+
+        function createEarthTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0a2463');
+            gradient.addColorStop(0.3, '#1565c0');
+            gradient.addColorStop(0.5, '#1e88e5');
+            gradient.addColorStop(0.7, '#1565c0');
+            gradient.addColorStop(1, '#0a2463');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#2e7d32';
+            const continents = [
+                {x: 200, y: 150, w: 300, h: 200},
+                {x: 550, y: 120, w: 250, h: 180},
+                {x: 700, y: 180, w: 200, h: 150},
+                {x: 50, y: 280, w: 180, h: 100},
+                {x: 450, y: 250, w: 150, h: 120}
+            ];
+            continents.forEach(c => {
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.w/2, c.h/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            ctx.strokeStyle = 'rgba(100, 180, 255, 0.4)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 18; i++) {
+                const y = i * canvas.height / 18;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= 36; i++) {
+                const x = i * canvas.width / 36;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createEarth() {
+            const earthGeometry = new THREE.SphereGeometry(1, 64, 64);
+            const earthMaterial = new THREE.MeshPhongMaterial({
+                map: createEarthTexture(),
+                bumpScale: 0.02,
+                specular: new THREE.Color(0x333333),
+                shininess: 5
+            });
+            
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            scene.add(earth);
+
+            const atmosphereGeometry = new THREE.SphereGeometry(1.05, 64, 64);
+            const atmosphereMaterial = new THREE.ShaderMaterial({
+                vertexShader: `
+                    varying vec3 vNormal;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vNormal;
+                    void main() {
+                        float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0);
+                        gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity * 0.5;
+                    }
+                `,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide,
+                transparent: true
+            });
+            const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+            scene.add(atmosphere);
+        }
+
+        function createCountryMarkers() {
+            const markerGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+            
+            Object.keys(countries).forEach(function(countryName) {
+                const country = countries[countryName];
+                const pos = latLonToCartesian(country.lat, country.lon);
+                
+                const markerMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xffeb3b,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+                marker.position.set(pos.x, pos.y, pos.z);
+                marker.userData = { country: countryName, lat: country.lat, lon: country.lon };
+                scene.add(marker);
+                countryMarkers.push(marker);
+
+                const labelCanvas = document.createElement('canvas');
+                labelCanvas.width = 256;
+                labelCanvas.height = 64;
+                const ctx = labelCanvas.getContext('2d');
+                ctx.font = 'bold 28px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText(countryName, 128, 40);
+                
+                const labelTexture = new THREE.CanvasTexture(labelCanvas);
+                const labelMaterial = new THREE.SpriteMaterial({ 
+                    map: labelTexture, 
+                    transparent: true,
+                    opacity: 1
+                });
+                const label = new THREE.Sprite(labelMaterial);
+                label.position.set(pos.x * 1.08, pos.y * 1.08, pos.z * 1.08);
+                label.scale.set(0.25, 0.0625, 1);
+                scene.add(label);
+                countryLabels.push(label);
+            });
+        }
+
+        function latLonToCartesian(lat, lon) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -Math.sin(phi) * Math.cos(theta);
+            const y = Math.cos(phi);
+            const z = Math.sin(phi) * Math.sin(theta);
+            return { x: x, y: y, z: z };
+        }
+
+        function createStars() {
+            const starsGeometry = new THREE.BufferGeometry();
+            const starPositions = [];
+            for (let i = 0; i < 2000; i++) {
+                const x = (Math.random() - 0.5) * 100;
+                const y = (Math.random() - 0.5) * 100;
+                const z = (Math.random() - 0.5) * 100;
+                starPositions.push(x, y, z);
+            }
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+            const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(stars);
+        }
+
+        function cartesianToLatLon(point) {
+            const normalized = point.clone().normalize();
+            const lat = Math.asin(normalized.y) * (180 / Math.PI);
+            const lon = Math.atan2(normalized.x, normalized.z) * (180 / Math.PI);
+            return { lat: lat, lon: -lon };
+        }
+
+        function findNearestCountry(lat, lon) {
+            let nearest = null;
+            let minDist = Infinity;
+            
+            Object.keys(countries).forEach(function(countryName) {
+                const country = countries[countryName];
+                const dist = Math.sqrt(Math.pow(country.lat - lat, 2) + Math.pow(country.lon - lon, 2));
+                if (dist < minDist && dist < 30) {
+                    minDist = dist;
+                    nearest = countryName;
+                }
+            });
+            return nearest;
+        }
+
+        function onMouseClick(event) {
+            if (event.target.closest('#info-panel') || event.target.closest('#radio-panel') || 
+                event.target.closest('.zoom-controls') || event.target.closest('.reset-btn')) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            const markerIntersects = raycaster.intersectObjects(countryMarkers);
+            if (markerIntersects.length > 0) {
+                const countryName = markerIntersects[0].object.userData.country;
+                zoomToCountry(countryName);
+                return;
+            }
+
+            const earthIntersects = raycaster.intersectObject(earth);
+            if (earthIntersects.length > 0) {
+                const point = earthIntersects[0].point;
+                const coords = cartesianToLatLon(point);
+                
+                document.getElementById('longitude').textContent = coords.lon.toFixed(1) + '°';
+                document.getElementById('latitude').textContent = coords.lat.toFixed(1) + '°';
+
+                const countryName = findNearestCountry(coords.lat, coords.lon);
+                if (countryName) {
+                    zoomToCountry(countryName);
+                } else {
+                    document.getElementById('country').textContent = '经度: ' + coords.lon.toFixed(1) + '°, 纬度: ' + coords.lat.toFixed(1) + '°';
+                }
+            }
+        }
+
+        function zoomToCountry(countryName) {
+            const country = countries[countryName];
+            if (!country) return;
+
+            document.getElementById('country').textContent = countryName;
+            document.getElementById('timezone').textContent = country.timezone;
+            
+            const pos = latLonToCartesian(country.lat, country.lon);
+            const targetCameraPos = new THREE.Vector3(pos.x * 1.6, pos.y * 1.6, pos.z * 1.6);
+            
+            animateCameraTo(targetCameraPos, 1);
+
+            if (country.stations && country.stations.length > 0) {
+                currentStation = country.stations[0];
+            }
+        }
+
+        function animateCameraTo(targetPos, duration) {
+            const startPos = camera.position.clone();
+            const startTime = Date.now();
+            
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const t = Math.min(elapsed / (duration * 1000), 1);
+                const easeT = 1 - Math.pow(1 - t, 3);
+                
+                camera.position.lerpVectors(startPos, targetPos, easeT);
+                controls.target.set(0, 0, 0);
+                controls.update();
+                
+                if (t < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            update();
+        }
+
+        function zoomTo(delta) {
+            const direction = camera.position.clone().normalize();
+            currentZoomLevel = Math.max(1.2, Math.min(4, currentZoomLevel + delta));
+            camera.position.copy(direction.multiplyScalar(currentZoomLevel));
+            controls.update();
+        }
+
+        function onWheel(event) {
+            event.preventDefault();
+            zoomTo(event.deltaY > 0 ? 0.15 : -0.15);
+        }
+
+        function resetView() {
+            currentZoomLevel = 2.5;
+            animateCameraTo(new THREE.Vector3(0, 0, currentZoomLevel), 1);
+            document.getElementById('country').textContent = '点击选择国家';
+            document.getElementById('longitude').textContent = '0°';
+            document.getElementById('latitude').textContent = '0°';
+            document.getElementById('timezone').textContent = 'UTC+0';
+            currentStation = null;
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                document.getElementById('playBtn').textContent = '播放电台';
+                document.getElementById('playBtn').classList.remove('playing');
+            }
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const markerIntersects = raycaster.intersectObjects(countryMarkers);
+            const earthIntersects = raycaster.intersectObject(earth);
+
+            if (markerIntersects.length > 0 || earthIntersects.length > 0) {
+                document.body.style.cursor = 'pointer';
+            } else {
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('playBtn');
+            if (!currentStation) {
+                document.getElementById('now-playing').textContent = '请先点击国家选择地区！';
+                return;
+            }
+
+            if (isPlaying) {
+                audio.pause();
+                btn.textContent = '播放电台';
+                btn.classList.remove('playing');
+                isPlaying = false;
+            } else {
+                audio.src = currentStation.url;
+                audio.crossOrigin = 'anonymous';
+                audio.volume = document.getElementById('volume-slider').value;
+                
+                audio.play().then(function() {
+                    btn.textContent = '停止播放';
+                    btn.classList.add('playing');
+                    isPlaying = true;
+                    document.getElementById('now-playing').textContent = '正在播放: ' + currentStation.name;
+                }).catch(function(err) {
+                    console.error('Play error:', err);
+                    document.getElementById('now-playing').textContent = '播放失败，请重试';
+                });
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            countryLabels.forEach(function(label) {
+                label.lookAt(camera.position);
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
