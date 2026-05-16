@@ -1,5 +1,7 @@
 services:
-  - type: static
-    name: MP4  
-    buildCommand: ""         
-    staticPublishPath: .     
+  - type: web                  # ✅ 所有Web服务/静态站点统一用 type: web
+    runtime: static            # ✅ 关键！标记为静态站点
+    name: MP4                  # ✅ 你的应用名（保持不变）
+    buildCommand: ""           # ✅ 纯静态页面留空，正确
+    staticPublishPath: .       # ✅ 根目录有 index.html 就填 .
+    plan: free    
